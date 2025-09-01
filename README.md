@@ -1,7 +1,7 @@
 # Contenido
--[[#⏰ Información general]]
--[[🪖 Trabajos Prácticos]]
--[[🔑  Parcial 1]]
+-[#⏰ Información general](#-información-general)
+-[🪖 Trabajos Prácticos](/bases-de-datos-labs/🪖%20Trabajos%20Prácticos.md)
+-[🔑  Parcial 1](/🔑%20%20Parcial%201.md)
 
 ---
 # ⏰ Información general
