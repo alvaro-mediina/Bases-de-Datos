@@ -1,0 +1,5 @@
+
+-- Mongo
+*.json
+*.bson
+*.gz
