@@ -272,6 +272,12 @@ Agregar dos nuevas calificaciones al restaurante cuyo id es "50018608". A contin
 // Busco para chequear si estaban:
 db.restaurants.find({ restaurant_id: { $eq: "50018608" } });
 
+//Borro grade
+db.restaurants.updateOne(
+  { restaurant_id: "50018608" },
+  { $unset: { grade: "" } }
+);
+
 db.restaurants.updateOne(
   {
     restaurant_id: {
@@ -279,19 +285,21 @@ db.restaurants.updateOne(
     },
   },
   {
-    $set: {
-      grade: [
-        {
-          date: ISODate("2019-10-10T00:00:00Z"),
-          grade: "A",
-          score: 18,
-        },
-        {
-          date: ISODate("2020-02-25T00:00:00Z"),
-          grade: "A",
-          score: 21,
-        },
-      ],
+    $push: {
+      grades: {
+        $each: [
+          {
+            date: ISODate("2019-10-10T00:00:00Z"),
+            grade: "A",
+            score: 18,
+          },
+          {
+            date: ISODate("2020-02-25T00:00:00Z"),
+            grade: "A",
+            score: 21,
+          },
+        ],
+      },
     },
   }
 );
