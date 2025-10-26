@@ -222,26 +222,20 @@ Ejercicio 9
 --------- -
 Crear una vista con los 5 géneros con mayor cantidad de comentarios, junto con la cantidad de comentarios.
 */
-
-db.createView("top5_genres_by_comments", "comments", [
+db.createView("top5_genres_by_comments", "movies", [
   {
     $lookup: {
-      from: "movies",
-      localField: "movie_id",
-      foreignField: "id",
-      as: "movie",
+      from: "comments",
+      localField: "_id",
+      foreignField: "movie_id",
+      as: "comments",
     },
   },
-  {
-    $unwind: "$movie",
-  },
-  {
-    $unwind: "$movie.genres",
-  },
+  { $unwind: "$genres" },
   {
     $group: {
-      _id: "$movie.genres",
-      comments_count: { $sum: 1 },
+      _id: "$genres",
+      comments_count: { $sum: { $size: "$comments" } },
     },
   },
   { $sort: { comments_count: -1 } },
@@ -258,6 +252,38 @@ Hint2: {'name.2': {$exists: true}} permite filtrar arrays con al menos 2 element
 Hint3: Puede que tu solución no use Hint1 ni Hint2 e igualmente sea correcta.
 */
 
+db.movies.aggregate([
+  {
+    $match: { directors: "Jules Bass" },
+  },
+  {
+    $unwind: "$cast",
+  },
+  {
+    $group: {
+      _id: "$cast",
+      movies: { $addToSet: { title: "$title", year: "$year" } },
+    },
+  },
+  {
+    $match: { "movies.1": { $exists: true } },
+  },
+  {
+    $addFields: {
+      movies_count: { $size: "$movies" },
+    },
+  },
+  {
+    $project: {
+      _id: 0,
+      actor: "$_id",
+      movies: 1,
+      movies_count: 1,
+    },
+  },
+  { $sort: { movies_count: -1 } },
+]);
+
 /*
 Ejercicio 11
 --------- --
@@ -265,6 +291,49 @@ Listar los usuarios que realizaron comentarios durante el mismo mes de lanzamien
 mostrando Nombre, Email, fecha del comentario, título de la película, fecha de lanzamiento.
 HINT: usar $lookup con múltiples condiciones.
 */
+db.users.aggregate([
+  {
+    $lookup: {
+      from: "comments",
+      localField: "email",
+      foreignField: "email",
+      pipeline: [
+        {
+          $lookup: {
+            from: "movies",
+            localField: "movie_id",
+            foreignField: "_id",
+            as: "movie",
+          },
+        },
+        {
+          $unwind: "$movie",
+        },
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $eq: [{ $month: "$date" }, { $month: "$movie.released" }] },
+                { $eq: [{ $year: "$date" }, { $year: "$movie.released" }] },
+              ],
+            },
+          },
+        },
+      ],
+      as: "cmts",
+    },
+  },
+  {
+    $project: {
+      _id: 0,
+      name: 1,
+      email: 1,
+      date_comment: "$cmts.date",
+      movie_title: "$cmts.movie.title",
+      released_movie: "$cmts.movie.released",
+    },
+  },
+]);
 
 /*
 Ejercicio 12
@@ -276,6 +345,146 @@ Se puede asumir que el restaurant_id es único.
     c) Resolver como en el punto b) pero usar $reduce para calcular la puntuación total.
     d) Resolver con find.
 */
+
+//a)
+db.restaurants.aggregate([
+  {
+    $unwind: "$grades",
+  },
+  {
+    $group: {
+      _id: "$restaurant_id",
+      name: { $first: "$name" },
+      min_puntuation: { $min: "$grades.score" },
+      max_puntuation: { $max: "$grades.score" },
+      total_puntuation: { $sum: "$grades.score" },
+    },
+  },
+  {
+    $sort: { total_puntuation: -1 },
+  },
+]);
+
+//b)
+db.restaurants.aggregate([
+  {
+    $project: {
+      _id: "$restaurant_id",
+      name: "$name",
+      scores: { $map: { input: "$grades", as: "s", in: "$$s.score" } },
+      min_puntuation: {
+        $min: { $map: { input: "$grades", as: "s", in: "$$s.score" } },
+      },
+      max_puntuation: {
+        $max: { $map: { input: "$grades", as: "s", in: "$$s.score" } },
+      },
+      total_puntuation: {
+        $sum: { $map: { input: "$grades", as: "s", in: "$$s.score" } },
+      },
+    },
+  },
+  {
+    $sort: { total_puntuation: -1 },
+  },
+]);
+
+//c)
+db.restaurants.aggregate([
+  {
+    $addFields: {
+      scores: { $map: { input: "$grades", as: "s", in: "$$s.score" } },
+    },
+  },
+  {
+    $addFields: {
+      min_puntuation: {
+        $reduce: {
+          input: "$scores",
+          initialValue: { $arrayElemAt: ["$scores", 0] },
+          in: {
+            $cond: [
+              {
+                $lte: ["$$this", "$$value"],
+              },
+              "$$this",
+              "$$value",
+            ],
+          },
+        },
+      },
+      max_puntuation: {
+        $reduce: {
+          input: "$scores",
+          initialValue: { $arrayElemAt: ["$scores", 0] },
+          in: {
+            $cond: [
+              {
+                $gte: ["$$this", "$$value"],
+              },
+              "$$this",
+              "$$value",
+            ],
+          },
+        },
+      },
+      total_puntuation: {
+        $reduce: {
+          input: "$scores",
+          initialValue: 0,
+          in: { $add: ["$$this", "$$value"] },
+        },
+      },
+    },
+  },
+  {
+    $project: {
+      _id: "$resturant_id",
+      name: "$name",
+      scores: 1,
+      min_puntuation: 1,
+      max_puntuation: 1,
+      total_puntuation: 1,
+    },
+  },
+  {
+    $sort: { total_puntuation: -1 },
+  },
+]);
+
+//d) Resolver con find.
+const restaurants = db.restaurants.find(
+  {
+    grades: { $exists: true, $ne: [] },
+  },
+  {
+    _id: 0,
+    resturant_id: 1,
+    name: 1,
+    "grades.score": 1,
+  }
+);
+restaurants.forEach((res) => {
+  const scores = res.grades.map((g) => g.score);
+
+  let min_puntuation = scores[0];
+  let max_puntuation = scores[0];
+  let total_puntuation = 0;
+
+  for (const s of scores) {
+    if (s < min_puntuation) min_puntuation = s;
+    if (s > max_puntuation) max_puntuation = s;
+    total_puntuation += s;
+  }
+
+  print(
+    res.resturant_id,
+    res.name,
+    scores,
+    min_puntuation,
+    max_puntuation,
+    total_puntuation
+  );
+});
 
 /*
 Ejercicio 13
@@ -289,3 +498,67 @@ Se debe actualizar con una sola query.
 HINT1: Se puede usar pipeline de agregación con la operación update.
 HINT2: El operador $switch o $cond pueden ser de ayuda.
 */
+
+// Chequeamos que se realiza la consulta de forma correcta antes de modificar la bd
+db.restaurants.aggregate([
+  {
+    $addFields: {
+      average_score: {
+        $avg: { $map: { input: "$grades", as: "s", in: "$$s.score" } },
+      },
+    },
+  },
+  {
+    $addFields: {
+      grade: {
+        $cond: {
+          if: { $lte: ["$average_score", 13] },
+          then: "A",
+          else: {
+            $cond: {
+              if: { $lte: ["$average_score", 27] },
+              then: "B",
+              else: "C",
+            },
+          },
+        },
+      },
+    },
+  },
+  {
+    $project: {
+      _id: 0,
+      name: 1,
+      grade: 1,
+      average_score: 1,
+    },
+  },
+]);
+
+// Modificamos la base de datos
+db.restaurants.updateMany({}, [
+  {
+    $addFields: {
+      average_score: {
+        $avg: { $map: { input: "$grades", as: "s", in: "$$s.score" } },
+      },
+    },
+  },
+  {
+    $addFields: {
+      grade: {
+        $cond: {
+          if: { $lte: ["$average_score", 13] },
+          then: "A",
+          else: {
+            $cond: {
+              if: { $lte: ["$average_score", 27] },
+              then: "B",
+              else: "C",
+            },
+          },
+        },
+      },
+    },
+  },
+]);
