@@ -265,8 +265,176 @@ db.theaters.insertOne({
 
 /*
 Ejercicio 4
+Especificar en la colección movies las siguientes reglas de validación: El campo title (requerido) es de tipo string, year (requerido) int con mínimo en 1900 y máximo en 3000, y que tanto cast, directors, countries, como genres sean arrays de strings sin duplicados.
+Hint: Usar el constructor NumberInt() para especificar valores enteros a la hora de insertar documentos. Recordar que mongo shell es un intérprete javascript y en javascript los literales numéricos son de tipo Number (double).
 */
+db.runCommand({
+  collMod: "movies",
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["title", "year"],
+      properties: {
+        title: { bsonType: "string" },
+        year: {
+          bsonType: "int",
+          minimum: 1900,
+          maximum: 3000,
+        },
+        cast: {
+          bsonType: "array",
+          items: {
+            bsonType: "string",
+          },
+          uniqueItems: true,
+        },
+        directors: {
+          bsonType: "array",
+          items: {
+            bsonType: "string",
+          },
+          uniqueItems: true,
+        },
+        countries: {
+          bsonType: "array",
+          items: {
+            bsonType: "string",
+          },
+          uniqueItems: true,
+        },
+        genres: {
+          bsonType: "array",
+          items: {
+            bsonType: "string",
+          },
+          uniqueItems: true,
+        },
+      },
+    },
+  },
+});
+
+// 1️⃣ Insertar documento válido (debería pasar)
+db.movies.insertOne({
+  title: "The Matrix",
+  year: NumberInt(1999),
+  cast: ["Keanu Reeves", "Laurence Fishburne"],
+  directors: ["Lana Wachowski", "Lilly Wachowski"],
+  countries: ["USA"],
+  genres: ["Action", "Sci-Fi"],
+});
+
+// 2️⃣ Faltar campo obligatorio 'title' (debería fallar)
+db.movies.insertOne({
+  year: NumberInt(1999),
+  cast: ["Keanu Reeves"],
+  directors: ["Lana Wachowski"],
+  countries: ["USA"],
+  genres: ["Action"],
+});
+
+// 3️⃣ 'year' fuera de rango (debería fallar)
+db.movies.insertOne({
+  title: "Future Movie",
+  year: NumberInt(3050), // fuera de rango
+  cast: ["Actor 1"],
+  directors: ["Director 1"],
+  countries: ["USA"],
+  genres: ["Sci-Fi"],
+});
+
+// 4️⃣ Array con duplicados en 'cast' (debería fallar)
+db.movies.insertOne({
+  title: "Duplicate Cast",
+  year: NumberInt(2000),
+  cast: ["Actor 1", "Actor 1"], // duplicado
+  directors: ["Director 1"],
+  countries: ["USA"],
+  genres: ["Drama"],
+});
+
+// 5️⃣ Array vacío o no definido (debería pasar, no hay required para arrays)
+db.movies.insertOne({
+  title: "Empty Arrays",
+  year: NumberInt(2010),
+  cast: [],
+  directors: [],
+  countries: [],
+  genres: [],
+});
 
 /*
 Ejercicio 5
+Crear una colección userProfiles con las siguientes reglas de validación: Tenga un campo user_id (requerido) de tipo “objectId”, un campo language (requerido) con alguno de los siguientes valores [ “English”, “Spanish”, “Portuguese” ] y un campo favorite_genres (no requerido) que sea un array de strings sin duplicados.
 */
+db.createCollection("userProfiles", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["user_id", "language"],
+      properties: {
+        user_id: { bsonType: "objectId" },
+        language: { enum: ["English", "Spanish", "Portuguese"] },
+        favorite_genres: {
+          bsonType: "array",
+          items: {
+            bsonType: "string",
+          },
+          uniqueItems: true,
+        },
+      },
+    },
+  },
+  validationLevel: "strict",
+  validationAction: "error",
+});
+
+// 1️⃣ Algunos perfiles de ejemplo adicionales (válidos)
+db.userProfiles.insertMany([
+  {
+    user_id: ObjectId(),
+    language: "English",
+    favorite_genres: ["Action", "Drama"],
+  },
+  {
+    user_id: ObjectId(),
+    language: "Spanish",
+    favorite_genres: ["Romance", "Comedy"],
+  },
+  {
+    user_id: ObjectId(),
+    language: "English",
+    favorite_genres: ["Horror", "Thriller"],
+  },
+  {
+    user_id: ObjectId(),
+    language: "Portuguese",
+    favorite_genres: ["Adventure", "Fantasy"],
+  },
+]);
+
+// 2️⃣ Documento válido sin favorite_genres (opcional)
+db.userProfiles.insertOne({
+  user_id: ObjectId(),
+  language: "Spanish",
+});
+
+// 3️⃣ Falta user_id (debe fallar)
+db.userProfiles.insertOne({
+  language: "English",
+  favorite_genres: ["Comedy"],
+});
+
+// 4️⃣ Lenguaje no permitido (debe fallar)
+db.userProfiles.insertOne({
+  user_id: ObjectId(),
+  language: "German",
+  favorite_genres: ["Action"],
+});
+
+// 5️⃣ Duplicados en favorite_genres (debe fallar)
+db.userProfiles.insertOne({
+  user_id: ObjectId(),
+  language: "Portuguese",
+  favorite_genres: ["Action", "Action"],
+});
