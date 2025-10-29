@@ -438,3 +438,237 @@ db.userProfiles.insertOne({
   language: "Portuguese",
   favorite_genres: ["Action", "Action"],
 });
+
+//Parte 2: Modelado de datos
+
+/*Ejercicio 6
+Identificar los distintos tipos de relaciones (One-To-One, One-To-Many) en las colecciones movies y comments. Determinar si se usó documentos anidados o referencias en cada relación y justificar la razón.
+*/
+
+/* 
+- Claramente la relación entre movies y comments es de One-To-Many dado que comments tiene
+`movie_id` entonces para cada película hay muchos comentarios. Aquí se utiliza la técnica de referencia.
+- Por otro lado en cuanto a movies:
+  - Tenemos la característica imdb el cual utiliza una estrategia de Anidado para mencionar el rating, los votos y el id del imdb. RELACIÓN One-To-One.
+  - También no tenemos una colección propia de géneros, utiliza la estrategia Anidado para denotar los distintos géneros que represente la película. Pasa lo mismo con las listas que denotan, directors, countries, etc. RELACIÓN One-To-Many
+  - Al igual que antes pasa lo mismo con directors, countries.
+- En cuento a comments no se puede decir mucho más dado que sólo hay información propia de un comentario.
+- Lo que sí se puede agregar es que hay una relacion One-To-Many entre comments y users dado que comments almacena el email como clave para referenciar a un usuario, que puede tener muchos comentarios a diversas películas. Aquí la estrategia es Referencia.
+*/
+
+/*Ejercicio 7
+Dado el diagrama de la base de datos shop junto con las queries más importantes. 
+
+Queries
+-------
+* Listar el id, titulo, y precio de los libros y sus categorías de un autor en particular 
+* Cantidad de libros por categorías
+* Listar el nombre y dirección entrega y el monto total (quantity * price) de sus pedidos para un order_id dado.
+Debe crear el modelo de datos en mongodb aplicando las estrategias “Modelo de datos anidados” y Referencias. El modelo de datos debe permitir responder las queries de manera eficiente.
+*/
+
+/*
+Primero que nada tenemos en el esquema las siguientes colecciones:
+ * orders
+ * order_detail
+ * books
+ * categories
+
+Las relaciones son las siguientes:
+  * books [M..1] -> categories 
+  * books [1..M] -> order_details
+  * order [1..M] -> order_id
+*/
+
+/*
+books -> categories
+Ahora lo que podemos hacer es como categories tiene sólo el nombre, es decir en una categoría
+pueden haber muchos libros, podríamos meter a categoría dentro de libros utilizando la estrategia
+Anidado para así evitar hacer lookup.
+*/
+
+/*
+En cuanto a order_details
+* Tenemos que sería una colección para representar muchos a muchos entre órdenes y libros.
+*/
+
+/*
+Respondo primero a las queries:
+* Listar el id, titulo, y precio de los libros y sus categorías de un autor en particular 
+-> Si cada libro tiene su propio precio y su categoría listo.
+
+* Cantidad de libros por categorías.
+-> Si tengo a categoría anidado a libro, hago un unwind y soy yo.
+
+* Listar el nombre y dirección entrega y el monto total (quantity * price) de sus pedidos para un order_id dado.
+-> Acá necesariamente tengo que tener una órden existente para la compra.
+-> Puedo en una órden referenciar:
+  * al libro que quiero comprar
+  * a la cantidad
+  * y luego quedarme con los atributos de órden que sería lo que pide la query.
+  * En vez de hacer 2 lookups haría 1.  
+*/
+
+db.createCollection("books");
+db.createCollection("orders");
+
+// NO HACERLO DE ESTA FORMA
+db.books.aggregate([
+  {
+    $addFields: {
+      book_id,
+      title,
+      author,
+      price,
+      category_name,
+      price,
+    },
+  },
+]);
+
+db.books.insertMany([
+  {
+    book_id: 1,
+    title: "Learning MySQL",
+    author: "Jesper Wisborg Krogh",
+    price: 34.31,
+    category_name: "Web Development",
+  },
+  {
+    book_id: 2,
+    title: "JavaScript Next",
+    author: "Raju Gandhi",
+    price: 36.7,
+    category_name: "Web Development",
+  },
+  {
+    book_id: 3,
+    title: "The Complete Robot",
+    author: "Isaac Asimov",
+    price: 12.13,
+    category_name: "Science Fiction",
+  },
+  {
+    book_id: 4,
+    title: "Foundation and Earth",
+    author: "Isaac Asimov",
+    price: 11.07,
+    category_name: "Science Fiction",
+  },
+  {
+    book_id: 5,
+    title: "The Da Vinci Code",
+    author: "Dan Brown",
+    price: 7.99,
+    category_name: "Historical Mysteries",
+  },
+  {
+    book_id: 6,
+    title: "A Column of Fire",
+    author: "Ken Follett",
+    price: 6.99,
+    category_name: "Historical Mysteries",
+  },
+]);
+
+db.orders.insertMany([
+  {
+    order_id: 1,
+    delivery_name: "Alice Johnson",
+    delivery_address: "123 Maple St, New York, USA",
+    cc_name: "Alice Johnson",
+    cc_number: "4111111111111111",
+    cc_expiry: "2026-07",
+    quantity: 2,
+    book_id: 1, // Learning MySQL
+  },
+  {
+    order_id: 2,
+    delivery_name: "Brian Lee",
+    delivery_address: "456 Oak Ave, Los Angeles, USA",
+    cc_name: "Brian Lee",
+    cc_number: "5500000000000004",
+    cc_expiry: "2027-03",
+    quantity: 1,
+    book_id: 2, // JavaScript Next
+  },
+  {
+    order_id: 3,
+    delivery_name: "Clara Martínez",
+    delivery_address: "789 Pine Rd, Madrid, Spain",
+    cc_name: "Clara Martínez",
+    cc_number: "340000000000009",
+    cc_expiry: "2025-12",
+    quantity: 3,
+    book_id: 3, // The Complete Robot
+  },
+  {
+    order_id: 4,
+    delivery_name: "Daniel Kim",
+    delivery_address: "321 Birch Blvd, Seoul, South Korea",
+    cc_name: "Daniel Kim",
+    cc_number: "30000000000004",
+    cc_expiry: "2026-09",
+    quantity: 1,
+    book_id: 5, // The Da Vinci Code
+  },
+  {
+    order_id: 5,
+    delivery_name: "Emma Rossi",
+    delivery_address: "654 Cherry Ln, Rome, Italy",
+    cc_name: "Emma Rossi",
+    cc_number: "6011000000000004",
+    cc_expiry: "2028-01",
+    quantity: 2,
+    book_id: 6, // A Column of Fire
+  },
+]);
+
+/*
+ * Listar el id, titulo, y precio de los libros y sus categorías de un autor en particular
+ * Cantidad de libros por categorías
+ * Listar el nombre y dirección entrega y el monto total (quantity * price) de sus pedidos para un order_id dado.
+ */
+
+db.books.find(
+  { author: "Isaac Asimov" },
+  { book_id: 1, price: 1, title: 1, category_name: 1, author: 1 }
+);
+
+db.books.aggregate({
+  $group: {
+    _id: "$category_name",
+    books_amount: { $sum: 1 },
+  },
+});
+
+db.orders.aggregate([
+  {
+    $lookup: {
+      from: "books",
+      localField: "book_id",
+      foreignField: "book_id",
+      as: "b",
+    },
+  },
+  {
+    $match: { order_id: { $eq: 1 } }, //Filtro por order_id_1
+  },
+  {
+    $project: {
+      _id: 0,
+      order_id: 1,
+      name: "$cc_name",
+      delivery_address: 1,
+      quantity: 1,
+      total_amount: {
+        $multiply: ["$quantity", { $arrayElemAt: ["$b.price", 0] }],
+      },
+    },
+  },
+]);
+
+/*Ejercicio 8
+Dado el siguiente diagrama que representa los datos de un blog de artículos.
+
+*/
